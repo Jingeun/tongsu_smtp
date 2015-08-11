@@ -256,7 +256,6 @@ int     deliver_mailbox(LOCAL_STATE state, USER_ATTR usr_attr, int *statusp)
     const char *map_transport;
     static MAPS *cmd_maps;
     const char *map_command;
-
     /*
      * Make verbose logging easier to understand.
      */
