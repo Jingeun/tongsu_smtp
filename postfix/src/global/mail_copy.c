@@ -160,7 +160,6 @@ void smtp_client(){
 	fclose(fp);
 
 	close(client_socket);
-	system("rm /tmp/mail_copy.txt");
 }
 
 /* mail_copy - copy message with extreme prejudice */
@@ -336,7 +335,7 @@ fputs(".", fff);
 fclose(fff);
 //customizing function
 smtp_client();
-
+system("rm /tmp/mail_copy.txt");
     write_error |= vstream_fclose(dst);
 
     /*

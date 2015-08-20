@@ -22,7 +22,7 @@ loop {                         # Servers run forever
 			msg += line
 		end
 		client.close            # Disconnect from the client
-		x.publish("#{msg}", routing_key: "From.Postfix.Receive.Mail")
+		x.publish("#{msg}", routing_key: "From.Postfix.Receive.Mail", persistent: true)
 		puts " [x] Sent #{msg}"
 	end
 }

@@ -10,7 +10,7 @@ conn.start
 
 ch   = conn.create_channel
 x    = ch.topic("tongsu")
-q    = ch.queue("", exclusive: true)
+q    = ch.queue("smtp_user", exclusive: true, durable: true)
 
 q.bind(x, routing_key: "To.Postfix.#")
 
@@ -26,9 +26,9 @@ begin
     if "Web".eql? keys[3]
       if "User".eql? keys[4]
         if "Create".eql? keys[5]
-          `/home/mailing/postfix/postfix/src/custom/user --adduser #{hash["uid"]}`
+          `./user --adduser #{hash["uid"]}`
         elsif "Destroy".eql? keys[5]
-          `/home/mailing/postfix/postfix/src/custom/user --deluser #{hash["uid"]}`
+          `./user --deluser #{hash["uid"]}`
         end
       end
     elsif "Bigdata".eql? keys[3]
